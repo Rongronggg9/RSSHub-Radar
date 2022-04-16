@@ -3,27 +3,49 @@ import RouteRecognizer from 'route-recognizer';
 
 function ruleHandler(rule, params, url, html, success, fail) {
     const run = () => {
-        let reaultWithParams;
+        let resultWithParams;
         if (typeof rule.target === 'function') {
             const parser = new DOMParser();
             const document = parser.parseFromString(html, 'text/html');
             try {
-                reaultWithParams = rule.target(params, url, document);
+                resultWithParams = rule.target(params, url, document);
             } catch (error) {
                 console.warn(error);
-                reaultWithParams = '';
+                resultWithParams = '';
             }
         } else if (typeof rule.target === 'string') {
-            reaultWithParams = rule.target;
+            resultWithParams = rule.target;
         }
 
-        if (reaultWithParams) {
-            for (const param in params) {
-                reaultWithParams = reaultWithParams.replace(`/:${param}`, `/${params[param]}`);
+        if (resultWithParams) {
+            const requiredParams = resultWithParams.match(/\/:\w+\??(?=\/|$)/g).map((param) => ({
+                name: param.slice(2).replace(/\?$/, ''),
+                optional: param.endsWith('?'),
+            }));
+
+            for (const param of requiredParams) {
+                if (params[param.name] !== undefined) {
+                    // successfully matched
+                    const regex = new RegExp(`/:${param.name}\\??(?=/|$)`);
+                    resultWithParams = resultWithParams.replace(regex, `/${params[param.name]}`);
+                } else if (param.optional) {
+                    // missing optional parameter, drop all following parameters
+                    const regex = new RegExp(`/:${param.name}\\?(/.*$)?`);
+                    resultWithParams = resultWithParams.replace(regex, '');
+                    break;
+                } else {
+                    // missing necessary parameter, fail
+                    resultWithParams = '';
+                    break;
+                }
+            }
+            if (resultWithParams && resultWithParams.includes(':')) {
+                // double-check
+                resultWithParams = '';
             }
         }
 
-        return reaultWithParams;
+        return resultWithParams;
     };
     const reaultWithParams = run();
     if (reaultWithParams && (!rule.verification || rule.verification(params))) {

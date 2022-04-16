@@ -211,4 +211,9 @@ module.exports = {
             VERSION: JSON.stringify(require('./src/assets/manifest.json').version)
         }),
     ],
+
+    // optimization:{
+    //     minimize: false,
+    // }
+
 };
